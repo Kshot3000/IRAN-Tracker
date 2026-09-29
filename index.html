@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IRAN Tracker — Strait of Hormuz Ship Monitor</title>
+<meta name="description" content="IRAN Tracker: Strait of Hormuz commercial ship movement monitor (demo data), satellite imagery viewer, key locations directory and OSINT news links.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <h1><span class="flag">🛰️</span>IRAN Tracker — Strait of Hormuz Ship Monitor</h1>
+  <p class="sub">Commercial vessel traffic · satellite basemap · key locations · public-source news</p>
+</header>
+
+<div class="demo-banner">
+  <strong>⚠ DEMO DATA — not live.</strong> All ship positions, names and crossing counts on this
+  site are <strong>simulated</strong> for demonstration. No live AIS feed is connected.
+  <a href="#methodology" data-tab="methodology" style="color:#fde68a">See Methodology →</a> for how to
+  plug in a real AIS API key (e.g. AISStream, MarineTraffic).
+</div>
+
+<nav class="tabs" aria-label="Sections">
+  <button class="active" data-tab="map">🗺 Map</button>
+  <button data-tab="crossings">⛴ Crossings</button>
+  <button data-tab="ships">🚢 Ship Directory</button>
+  <button data-tab="satellite">🛰 Satellite</button>
+  <button data-tab="news">📰 News</button>
+  <button data-tab="methodology">📖 Methodology</button>
+</nav>
+
+<main>
+  <!-- MAP -->
+  <section class="panel active" id="panel-map">
+    <div class="cards" id="statCards"></div>
+    <div id="map" class="map"></div>
+    <div class="legend" style="margin-top:8px">
+      ▲ Moving demo vessel (points in course direction) · <span class="tag demo">DEMO</span> simulated positions ·
+      Source: simulated · Snapshot: <span id="mapUpdated">—</span>
+    </div>
+    <p class="note">Inspired by <a href="https://hormuz.data-tracking.net/" target="_blank" rel="noopener">hormuz.data-tracking.net</a>.
+    That site uses real AIS data collected every 30 minutes; this page shows the same <em>kind</em> of view with simulated data until a live AIS key is configured.</p>
+  </section>
+
+  <!-- CROSSINGS -->
+  <section class="panel" id="panel-crossings">
+    <h2>Recent Strait Crossings <span class="tag demo">DEMO</span></h2>
+    <p class="note">Simulated crossings generated for demonstration. Snapshot: <span class="snapTime">—</span> · Source: simulated</p>
+    <table id="crossingsTable">
+      <thead><tr>
+        <th>Time (UTC)</th><th>Direction</th><th>Ship Name</th><th>Type</th>
+        <th>Flag</th><th>DWT</th><th>Est. M bbl</th><th>Destination</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- SHIP DIRECTORY -->
+  <section class="panel" id="panel-ships">
+    <h2>Ship Directory <span class="tag demo">DEMO</span></h2>
+    <p class="note">Simulated vessel list. Snapshot: <span class="snapTime">—</span> · Source: simulated</p>
+    <table id="shipsTable">
+      <thead><tr>
+        <th>Ship Name</th><th>Type</th><th>Flag</th><th>DWT</th>
+        <th>Length</th><th>Speed (kn)</th><th>Course</th><th>Status</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- SATELLITE -->
+  <section class="panel" id="panel-satellite">
+    <h2>Satellite Imagery Viewer</h2>
+    <div class="sat-note">
+      <strong>Basemap mosaic — NOT live satellite.</strong> These tiles are a compiled satellite
+      basemap (Esri World Imagery); they are typically months old and do <strong>not</strong> update in
+      real time. For recent imagery, open the same area in
+      <a href="https://www.sentinel-hub.com/explore/eobrowser/" target="_blank" rel="noopener">Sentinel Hub EO Browser</a>
+      (free, 5–10 day revisit for Sentinel-2).
+    </div>
+    <div id="satmap" class="map"></div>
+    <h3>Key locations</h3>
+    <p class="note">Public reference locations only — Strait of Hormuz chokepoint and major cities/islands.
+    No military facility coordinates are published on this site.</p>
+    <table id="locTable">
+      <thead><tr><th>Location</th><th>Type</th><th>Coordinates</th><th>Notes</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- NEWS -->
+  <section class="panel" id="panel-news">
+    <h2>OSINT News — public sources</h2>
+    <p class="note">Curated links to public reporting. This site does not track military movements;
+    it links to reputable public sources. Links last verified <strong>2026-09-28</strong>.</p>
+    <ul class="links">
+      <li><a href="https://www.reuters.com/world/middle-east/" target="_blank" rel="noopener">Reuters — Middle East</a>
+        <small>Wire reporting on Iran and the Strait of Hormuz.</small></li>
+      <li><a href="https://apnews.com/hub/iran" target="_blank" rel="noopener">Associated Press — Iran</a>
+        <small>AP coverage of Iran.</small></li>
+      <li><a href="https://www.eia.gov/international/analysis/country/IRN" target="_blank" rel="noopener">U.S. EIA — Iran country analysis</a>
+        <small>Official energy statistics, including the Strait of Hormuz oil-flow chokepoint data.</small></li>
+      <li><a href="https://gcaptain.com/" target="_blank" rel="noopener">gCaptain</a>
+        <small>Maritime industry news, including Gulf shipping and AIS incidents.</small></li>
+      <li><a href="https://www.marinetraffic.com/" target="_blank" rel="noopener">MarineTraffic</a>
+        <small>Live commercial AIS vessel tracking (free tier available).</small></li>
+      <li><a href="https://www.aljazeera.com/tag/iran/" target="_blank" rel="noopener">Al Jazeera — Iran</a>
+        <small>Regional coverage of Iran and the Gulf.</small></li>
+    </ul>
+  </section>
+
+  <!-- METHODOLOGY -->
+  <section class="panel" id="panel-methodology">
+    <h2>Methodology</h2>
+    <h3>Ship data (AIS)</h3>
+    <p>The reference site <a href="https://hormuz.data-tracking.net/" target="_blank" rel="noopener">hormuz.data-tracking.net</a>
+    collects real AIS transponder data roughly every 30 minutes, counts strait crossings and estimates oil
+    exports from tanker deadweight. <strong>This site currently shows simulated demo data</strong> because no
+    AIS API key is configured.</p>
+    <h3>How to connect a live AIS feed</h3>
+    <p>To go live, sign up for an AIS provider (e.g.
+    <a href="https://aisstream.io/" target="_blank" rel="noopener">AISStream.io</a> or
+    <a href="https://www.marinetraffic.com/" target="_blank" rel="noopener">MarineTraffic</a>), then:</p>
+    <code class="block">// in app.js — replace the demo loader:
+const AIS_API_KEY = "YOUR_KEY_HERE";
+// fetch("https://stream.aisstream.io/v0/stream", { ... })
+// map live fields: name, ship_type, flag, dwt, lat, lon, cog, sog</code>
+    <p class="note">Live mode must keep the <span class="tag live">LIVE</span> badge, a per-panel
+    "last updated" timestamp, and the provider's attribution requirements.</p>
+    <h3>Satellite imagery</h3>
+    <p>There is no public "live satellite" feed. The Satellite tab uses Esri World Imagery, a
+    <strong>mosaic basemap</strong> compiled from imagery that is typically months old. Free recent
+    imagery (Sentinel-2, ~5–10 day revisit; Landsat, ~8–16 days) is available via
+    <a href="https://www.sentinel-hub.com/explore/eobrowser/" target="_blank" rel="noopener">Sentinel Hub EO Browser</a>.
+    Tasked high-resolution imagery is commercial and restricted.</p>
+    <h3>What this site does not do</h3>
+    <p>No real-time tracking of military units or facilities. The locations directory lists only the
+    Strait of Hormuz chokepoint and major cities/islands from public geographic references.</p>
+    <h3>Oil estimates</h3>
+    <p>Demo oil estimates are illustrative only. Real methodology: estimate cargo from tanker DWT
+    class × assumed load factor, summed over outbound laden tankers per 24h (see the reference site's methodology page).</p>
+  </section>
+</main>
+
+<footer>
+  IRAN Tracker · <span class="tag demo">DEMO DATA</span> · Ship positions simulated — not for navigation ·
+  Satellite view is a basemap mosaic, not live · Built 2026-09-28
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="app.js"></script>
+</body>
+</html>
