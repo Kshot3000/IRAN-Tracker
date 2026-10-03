@@ -61,6 +61,10 @@ The frontend reloads snapshots every 30 minutes while visible. Refresh reloads t
 - USGS public-domain data. BBC / Al Jazeera headlines remain attributable to their publishers. Leaflet BSD-2-Clause license is bundled in `assets/vendor/leaflet/LICENSE`.
 - Fonts use Google Fonts with system-font fallback. Public map/image requests disclose the visitor's IP to their respective providers. No analytics, automatic location request, tracking cookies, or user account is added. Watchlists, theme and successful snapshots are stored locally in the browser only.
 
+## Support
+
+Tip the build — BTC: `3GnR7TWBXAB3pPztBWpNF4LMNEX5yX8vZK`
+
 ## Local use / validation
 
 ```sh
