@@ -1,1 +1,1 @@
-{"name":"IRAN Tracker — Maritime Observatory","short_name":"IRAN Tracker","start_url":"./","display":"standalone","background_color":"#0b1117","theme_color":"#0b1117","icons":[{"src":"favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
+{"background_color":"#0b1117","display":"standalone","icons":[{"purpose":"any","sizes":"any","src":"favicon.svg","type":"image/svg+xml"}],"name":"Hormuz HQ — Strait of Hormuz Maritime Observatory","short_name":"Hormuz HQ","start_url":"./","theme_color":"#0b1117"}

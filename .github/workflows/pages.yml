@@ -44,7 +44,8 @@ jobs:
       - name: Assemble static website
         run: |
           mkdir _site
-          cp index.html style.css app.js core.mjs favicon.svg manifest.webmanifest README.md START-HERE.md _site/
+          cp index.html style.css app.js core.mjs favicon.svg manifest.webmanifest README.md START-HERE.md ads.txt _site/
+          if [ -f CNAME ]; then cp CNAME _site/; fi
           cp -r assets data _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5

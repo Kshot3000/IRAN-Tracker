@@ -1,4 +1,6 @@
-# IRAN Tracker — Maritime Observatory
+# Hormuz HQ — Strait of Hormuz Maritime Observatory
+
+*Formerly IRAN Tracker — now published at [hormuzhq.xyz](https://hormuzhq.xyz/).*
 
 A public-source observatory for Iran, the Strait of Hormuz, and commercial traffic in the Persian Gulf and Gulf of Oman. Plain HTML, CSS, and JavaScript. No frontend build, secret keys, account setup, or paid service is required for the included public-data integrations.
 
