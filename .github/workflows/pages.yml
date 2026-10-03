@@ -1,0 +1,63 @@
+name: Refresh public data and deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore last successful source snapshots
+        uses: actions/cache/restore@v4
+        with:
+          path: data/live
+          key: public-feeds-${{ github.run_id }}
+          restore-keys: public-feeds-
+      - name: Collect real public feeds
+        run: python scripts/refresh_data.py
+      - name: Validate data handling
+        run: |
+          node --test tests/core.test.mjs
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: Cache source snapshots
+        uses: actions/cache/save@v4
+        with:
+          path: data/live
+          key: public-feeds-${{ github.run_id }}
+      - name: Assemble static website
+        run: |
+          mkdir _site
+          cp index.html style.css app.js core.mjs favicon.svg manifest.webmanifest README.md START-HERE.md _site/
+          cp -r assets data _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
