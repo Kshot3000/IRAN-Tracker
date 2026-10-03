@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-10-03T08:49:07.595144Z",
+  "feeds": {
+    "summary": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:05.447417Z",
+      "observedAt": "2026-10-03T08:30:51+00:00"
+    },
+    "ships": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:05.793203Z",
+      "observedAt": "2026-10-03T08:30:51+00:00"
+    },
+    "crossings": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:05.505280Z",
+      "observedAt": null
+    },
+    "daily": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:05.501310Z",
+      "observedAt": null
+    },
+    "incidents": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:06.078464Z",
+      "observedAt": "2026-10-03T08:33:04+00:00"
+    },
+    "weather": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:06.732326Z",
+      "observedAt": "2026-10-03T08:45Z"
+    },
+    "marine": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:07.168983Z",
+      "observedAt": "2026-10-03T08:45Z"
+    },
+    "satellite": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:07.594053Z",
+      "observedAt": "2026-10-03T08:30:00Z"
+    },
+    "scenes": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:06.682461Z",
+      "observedAt": "2026-10-01T06:52:32.111000Z"
+    },
+    "earthquakes": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:07.310567Z",
+      "observedAt": "2026-10-03T08:49:07+00:00"
+    },
+    "news": {
+      "status": "ok",
+      "fetchedAt": "2026-10-03T08:49:07.281150Z",
+      "observedAt": null
+    }
+  }
+}

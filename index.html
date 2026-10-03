@@ -1,156 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-theme="dark">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IRAN Tracker — Strait of Hormuz Ship Monitor</title>
-<meta name="description" content="IRAN Tracker: Strait of Hormuz commercial ship movement monitor (demo data), satellite imagery viewer, key locations directory and OSINT news links.">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1117">
+<title>IRAN Tracker — Maritime Observatory</title>
+<meta name="description" content="Real commercial shipping, recent satellite imagery, marine conditions and public reporting for Iran and the Strait of Hormuz. Every feed timestamped and attributed.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css"><link rel="stylesheet" href="style.css">
+<script defer src="assets/vendor/leaflet/leaflet.js"></script><script type="module" src="app.js"></script>
 </head>
 <body>
-<header class="site">
-  <h1><span class="flag">🛰️</span>IRAN Tracker — Strait of Hormuz Ship Monitor</h1>
-  <p class="sub">Commercial vessel traffic · satellite basemap · key locations · public-source news</p>
-</header>
-
-<div class="demo-banner">
-  <strong>⚠ DEMO DATA — not live.</strong> All ship positions, names and crossing counts on this
-  site are <strong>simulated</strong> for demonstration. No live AIS feed is connected.
-  <a href="#methodology" data-tab="methodology" style="color:#fde68a">See Methodology →</a> for how to
-  plug in a real AIS API key (e.g. AISStream, MarineTraffic).
-</div>
-
-<nav class="tabs" aria-label="Sections">
-  <button class="active" data-tab="map">🗺 Map</button>
-  <button data-tab="crossings">⛴ Crossings</button>
-  <button data-tab="ships">🚢 Ship Directory</button>
-  <button data-tab="satellite">🛰 Satellite</button>
-  <button data-tab="news">📰 News</button>
-  <button data-tab="methodology">📖 Methodology</button>
+<a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar">
+<a class="brand" href="#overview"><img src="favicon.svg" width="40" height="40" alt=""><span>IRAN <b>TRACKER</b><small>MARITIME OBSERVATORY</small></span></a>
+<div class="nav-label">WORKSPACE</div>
+<nav aria-label="Main navigation" class="main-nav">
+<a href="#overview" data-view="overview" class="active"><span data-icon="grid"></span><span>Overview</span></a>
+<a href="#vessels" data-view="vessels"><span data-icon="ship"></span><span>Vessel explorer</span><small id="nav-ships">—</small></a>
+<a href="#crossings" data-view="crossings"><span data-icon="activity"></span><span>Strait crossings</span></a>
+<a href="#satellite" data-view="satellite"><span data-icon="sat"></span><span>Satellite watch</span><i class="dot teal"></i></a>
+<a href="#reports" data-view="reports"><span data-icon="globe"></span><span>Reports & news</span></a>
 </nav>
-
-<main>
-  <!-- MAP -->
-  <section class="panel active" id="panel-map">
-    <div class="cards" id="statCards"></div>
-    <div id="map" class="map"></div>
-    <div class="legend" style="margin-top:8px">
-      ▲ Moving demo vessel (points in course direction) · <span class="tag demo">DEMO</span> simulated positions ·
-      Source: simulated · Snapshot: <span id="mapUpdated">—</span>
-    </div>
-    <p class="note">Inspired by <a href="https://hormuz.data-tracking.net/" target="_blank" rel="noopener">hormuz.data-tracking.net</a>.
-    That site uses real AIS data collected every 30 minutes; this page shows the same <em>kind</em> of view with simulated data until a live AIS key is configured.</p>
-  </section>
-
-  <!-- CROSSINGS -->
-  <section class="panel" id="panel-crossings">
-    <h2>Recent Strait Crossings <span class="tag demo">DEMO</span></h2>
-    <p class="note">Simulated crossings generated for demonstration. Snapshot: <span class="snapTime">—</span> · Source: simulated</p>
-    <table id="crossingsTable">
-      <thead><tr>
-        <th>Time (UTC)</th><th>Direction</th><th>Ship Name</th><th>Type</th>
-        <th>Flag</th><th>DWT</th><th>Est. M bbl</th><th>Destination</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-
-  <!-- SHIP DIRECTORY -->
-  <section class="panel" id="panel-ships">
-    <h2>Ship Directory <span class="tag demo">DEMO</span></h2>
-    <p class="note">Simulated vessel list. Snapshot: <span class="snapTime">—</span> · Source: simulated</p>
-    <table id="shipsTable">
-      <thead><tr>
-        <th>Ship Name</th><th>Type</th><th>Flag</th><th>DWT</th>
-        <th>Length</th><th>Speed (kn)</th><th>Course</th><th>Status</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-
-  <!-- SATELLITE -->
-  <section class="panel" id="panel-satellite">
-    <h2>Satellite Imagery Viewer</h2>
-    <div class="sat-note">
-      <strong>Basemap mosaic — NOT live satellite.</strong> These tiles are a compiled satellite
-      basemap (Esri World Imagery); they are typically months old and do <strong>not</strong> update in
-      real time. For recent imagery, open the same area in
-      <a href="https://www.sentinel-hub.com/explore/eobrowser/" target="_blank" rel="noopener">Sentinel Hub EO Browser</a>
-      (free, 5–10 day revisit for Sentinel-2).
-    </div>
-    <div id="satmap" class="map"></div>
-    <h3>Key locations</h3>
-    <p class="note">Public reference locations only — Strait of Hormuz chokepoint and major cities/islands.
-    No military facility coordinates are published on this site.</p>
-    <table id="locTable">
-      <thead><tr><th>Location</th><th>Type</th><th>Coordinates</th><th>Notes</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-
-  <!-- NEWS -->
-  <section class="panel" id="panel-news">
-    <h2>OSINT News — public sources</h2>
-    <p class="note">Curated links to public reporting. This site does not track military movements;
-    it links to reputable public sources. Links last verified <strong>2026-09-28</strong>.</p>
-    <ul class="links">
-      <li><a href="https://www.reuters.com/world/middle-east/" target="_blank" rel="noopener">Reuters — Middle East</a>
-        <small>Wire reporting on Iran and the Strait of Hormuz.</small></li>
-      <li><a href="https://apnews.com/hub/iran" target="_blank" rel="noopener">Associated Press — Iran</a>
-        <small>AP coverage of Iran.</small></li>
-      <li><a href="https://www.eia.gov/international/analysis/country/IRN" target="_blank" rel="noopener">U.S. EIA — Iran country analysis</a>
-        <small>Official energy statistics, including the Strait of Hormuz oil-flow chokepoint data.</small></li>
-      <li><a href="https://gcaptain.com/" target="_blank" rel="noopener">gCaptain</a>
-        <small>Maritime industry news, including Gulf shipping and AIS incidents.</small></li>
-      <li><a href="https://www.marinetraffic.com/" target="_blank" rel="noopener">MarineTraffic</a>
-        <small>Live commercial AIS vessel tracking (free tier available).</small></li>
-      <li><a href="https://www.aljazeera.com/tag/iran/" target="_blank" rel="noopener">Al Jazeera — Iran</a>
-        <small>Regional coverage of Iran and the Gulf.</small></li>
-    </ul>
-  </section>
-
-  <!-- METHODOLOGY -->
-  <section class="panel" id="panel-methodology">
-    <h2>Methodology</h2>
-    <h3>Ship data (AIS)</h3>
-    <p>The reference site <a href="https://hormuz.data-tracking.net/" target="_blank" rel="noopener">hormuz.data-tracking.net</a>
-    collects real AIS transponder data roughly every 30 minutes, counts strait crossings and estimates oil
-    exports from tanker deadweight. <strong>This site currently shows simulated demo data</strong> because no
-    AIS API key is configured.</p>
-    <h3>How to connect a live AIS feed</h3>
-    <p>To go live, sign up for an AIS provider (e.g.
-    <a href="https://aisstream.io/" target="_blank" rel="noopener">AISStream.io</a> or
-    <a href="https://www.marinetraffic.com/" target="_blank" rel="noopener">MarineTraffic</a>), then:</p>
-    <code class="block">// in app.js — replace the demo loader:
-const AIS_API_KEY = "YOUR_KEY_HERE";
-// fetch("https://stream.aisstream.io/v0/stream", { ... })
-// map live fields: name, ship_type, flag, dwt, lat, lon, cog, sog</code>
-    <p class="note">Live mode must keep the <span class="tag live">LIVE</span> badge, a per-panel
-    "last updated" timestamp, and the provider's attribution requirements.</p>
-    <h3>Satellite imagery</h3>
-    <p>There is no public "live satellite" feed. The Satellite tab uses Esri World Imagery, a
-    <strong>mosaic basemap</strong> compiled from imagery that is typically months old. Free recent
-    imagery (Sentinel-2, ~5–10 day revisit; Landsat, ~8–16 days) is available via
-    <a href="https://www.sentinel-hub.com/explore/eobrowser/" target="_blank" rel="noopener">Sentinel Hub EO Browser</a>.
-    Tasked high-resolution imagery is commercial and restricted.</p>
-    <h3>What this site does not do</h3>
-    <p>No real-time tracking of military units or facilities. The locations directory lists only the
-    Strait of Hormuz chokepoint and major cities/islands from public geographic references.</p>
-    <h3>Oil estimates</h3>
-    <p>Demo oil estimates are illustrative only. Real methodology: estimate cargo from tanker DWT
-    class × assumed load factor, summed over outbound laden tankers per 24h (see the reference site's methodology page).</p>
-  </section>
-</main>
-
-<footer>
-  IRAN Tracker · <span class="tag demo">DEMO DATA</span> · Ship positions simulated — not for navigation ·
-  Satellite view is a basemap mosaic, not live · Built 2026-09-28
-</footer>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="app.js"></script>
-</body>
-</html>
+<div class="nav-label second">YOUR OBSERVATORY</div>
+<nav class="secondary-nav" aria-label="Tools"><button id="watchlist-nav"><span data-icon="star"></span><span>Watchlist</span><small id="watch-count">0</small></button><a href="#sources" data-view="sources"><span data-icon="layers"></span><span>Sources & status</span></a></nav>
+<div class="sidebar-bottom"><div class="region-card"><span class="eyebrow">AREA OF INTEREST</span><strong>Strait of Hormuz</strong><span class="mono">26.56° N &nbsp; 56.25° E</span><hr><small>Persian Gulf ↔ Gulf of Oman</small></div><div class="sidebar-note"><i class="dot teal"></i> Public-source observatory<small>Independent. Transparent. Timestamped.</small></div><a class="repo-link" href="https://github.com/Kshot3000/IRAN-Tracker" target="_blank" rel="noopener noreferrer">Open-source project <span>↗</span></a></div>
+</aside>
+<div class="workspace">
+<header class="topbar"><div class="breadcrumb">Observatory <span>/</span> <strong id="breadcrumb-view">Overview</strong></div><form id="global-search" class="global-search" role="search"><span data-icon="search"></span><input id="global-query" aria-label="Search vessels" placeholder="Find a vessel…"><kbd>/</kbd></form><div class="top-actions"><time class="mono" id="utc-clock"></time><button class="icon-button" id="theme-toggle" aria-label="Switch color theme"><span data-icon="sun"></span></button><button class="button small" id="refresh"><span data-icon="refresh"></span><span>Refresh</span></button></div></header>
+<main id="main" tabindex="-1">
+<div class="notice" id="connection-alert" role="status" hidden></div>
+<section class="page-heading"><div><div class="eyebrow"><i class="tiny-line"></i> PERSIAN GULF & GULF OF OMAN</div><h1 id="page-title">Eyes on the strait.</h1><p id="page-description">Commercial traffic, earth observation, and the stories behind the signal.</p></div><a href="#sources" class="data-status" id="global-status"><i class="dot"></i><div><strong>Connecting to sources</strong><small>Reading observation times</small></div></a></section>
+<section class="view" id="view-overview" aria-label="Overview">
+<div class="stats" id="stats"><div class="stat skeleton"></div><div class="stat skeleton"></div><div class="stat skeleton"></div><div class="stat skeleton"></div></div>
+<div class="overview-grid"><section class="panel map-panel"><div class="panel-heading"><div><span class="live-label"><i class="dot teal"></i> COMMERCIAL AIS</span><h2>Traffic at a glance</h2></div><div class="segmented" id="base-switch"><button data-base="dark" class="active" aria-pressed="true">Map</button><button data-base="satellite" aria-pressed="false">Imagery</button></div></div><div class="map-wrap"><div id="traffic-map" class="traffic-map" aria-label="Interactive commercial vessel map"></div><div class="map-tools"><button id="fit-map" class="map-tool" aria-label="Fit visible vessels"><span data-icon="expand"></span></button><button id="reset-map" class="map-tool" aria-label="Center on Hormuz"><span data-icon="pin"></span></button></div><div class="map-caption"><i class="dot teal"></i><span id="map-count">Loading commercial positions…</span></div><div id="map-error" class="map-error" hidden>Map tiles could not load. Vessel records are available in the explorer.</div></div><div class="map-legend"><div class="legend-filters" id="map-filters"><button data-type="all" class="active">All vessels</button><button data-type="tanker"><i class="key tanker"></i>Tankers</button><button data-type="cargo"><i class="key cargo"></i>Cargo</button><button data-type="other"><i class="key other"></i>Other</button></div><span class="mono" id="map-updated">—</span></div></section>
+<aside class="overview-aside"><section class="panel weather-panel"><div class="panel-heading"><div><span class="eyebrow">AT THE STRAIT</span><h2>Marine conditions</h2></div><span class="large-icon" data-icon="wind"></span></div><div class="weather-content" id="weather-content"><p class="muted">Loading forecast models…</p></div><a class="panel-foot" href="#sources">Open-Meteo forecast models <span>↗</span></a></section><a href="#satellite" class="satellite-teaser"><div class="teaser-image" id="satellite-preview"></div><div class="teaser-shade"></div><div class="teaser-content"><span class="live-label"><span data-icon="sat"></span> FROM ORBIT</span><h2>A wider perspective.</h2><p id="sat-teaser-time">Recent Meteosat imagery</p><span class="teaser-link">Open satellite watch <span data-icon="arrow"></span></span></div></a></aside></div>
+<div class="lower-grid"><section class="panel chart-panel"><div class="panel-heading"><div><span class="eyebrow">THE BIGGER PICTURE</span><h2>Crossing activity</h2></div><span class="chip">30 days</span></div><div id="overview-chart" class="chart-container"></div><div class="chart-legend"><span><i class="key tanker"></i>Inbound</span><span><i class="key outbound"></i>Outbound</span><span class="muted">UTC days · today partial</span></div></section><section class="panel recent-panel"><div class="panel-heading"><div><span class="eyebrow">LATEST DETECTIONS</span><h2>Through the strait</h2></div><a href="#crossings" class="text-link">View all ↗</a></div><div class="recent-list" id="recent-crossings"></div></section></div>
+<p class="data-footnote">AIS and crossing detections: <a href="https://hormuz.data-tracking.net/" target="_blank" rel="noopener noreferrer">Hormuz Ship Monitor</a> · 30-minute source cadence. Sampled coverage; positions are not independently verified.</p>
+</section>
+<section class="view" id="view-vessels" aria-label="Vessel explorer" hidden><div class="panel"><div class="filter-bar"><label class="search-field"><span data-icon="search"></span><input type="search" id="vessel-query" placeholder="Name, source ID, flag or destination" aria-label="Filter vessels"></label><select id="vessel-type" aria-label="Vessel type"><option value="all">All vessel types</option><option value="tanker">Tankers</option><option value="cargo">Cargo</option><option value="passenger">Passenger</option><option value="other">Other commercial</option></select><select id="vessel-zone" aria-label="Vessel area"><option value="all">All areas</option><option value="persian_gulf">Persian Gulf</option><option value="gulf_of_oman">Gulf of Oman</option></select><button id="watch-only" class="button" aria-pressed="false"><span data-icon="star"></span>Watchlist</button><button id="export-vessels" class="button"><span data-icon="download"></span>CSV</button></div><div class="table-meta"><span id="vessel-results">Loading…</span><span id="vessel-time"></span></div><div class="table-scroll"><table id="vessel-table"><thead><tr><th><button data-sort="name">Vessel ↕</button></th><th>Type / flag</th><th>Area</th><th><button data-sort="speed">Speed ↕</button></th><th>Destination</th><th><button data-sort="timestamp">Position time ↕</button></th><th>Watch</th></tr></thead><tbody></tbody></table></div><div class="pagination"><button id="vessel-prev" class="button small">← Previous</button><span id="vessel-page" class="mono"></span><button id="vessel-next" class="button small">Next →</button></div></div><p class="data-footnote">Identifiers are displayed as supplied; some are provider IDs, not valid MMSIs. Watchlists are saved only in this browser.</p></section>
+<section class="view" id="view-crossings" aria-label="Strait crossings" hidden><section class="panel chart-panel wide-chart"><div class="panel-heading"><div><span class="eyebrow">30-DAY HISTORY</span><h2>The flow through Hormuz</h2></div><div class="chart-legend"><span><i class="key tanker"></i>Inbound</span><span><i class="key outbound"></i>Outbound</span></div></div><div class="chart-container" id="full-chart"></div></section><div class="panel"><div class="filter-bar"><h2>Crossing detections · 48h</h2><select id="crossing-direction" aria-label="Crossing direction"><option value="all">Both directions</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select><button id="export-crossings" class="button"><span data-icon="download"></span>Export CSV</button></div><div class="table-scroll"><table id="crossing-table"><thead><tr><th>Detected · UTC</th><th>Vessel</th><th>Direction</th><th>Category</th><th>DWT</th><th>Destination</th></tr></thead><tbody></tbody></table></div></div><p class="data-footnote">Crossings are inferred from zone changes. Detection time is not exact passage time. DWT is capacity, not measured cargo. Missing AIS affects coverage.</p></section>
+<section class="view" id="view-satellite" aria-label="Satellite watch" hidden><div class="satellite-layout"><section class="panel"><div class="sat-toolbar"><label>Imagery layer<select id="sat-layer"><option value="msg_iodc:ir108">Meteosat · thermal infrared</option><option value="msg_iodc:rgb_natural">Meteosat · natural color</option><option value="msg_iodc:rgb_dust">Meteosat · dust RGB</option><option value="viirs">NASA VIIRS · daily true color</option><option value="basemap">Esri · reference basemap</option></select></label><button id="sat-latest" class="button small"><span data-icon="refresh"></span>Latest available</button></div><div class="sat-map-wrap"><div id="satellite-map" class="satellite-map" aria-label="Interactive satellite imagery map"></div><div id="sat-image-status" class="imagery-stamp">Reading capture metadata…</div></div><div id="sat-time-controls" class="sat-controls"><button id="sat-play" class="button small">▶ Play</button><label class="sat-slider-label"><span>6 hours ago</span><input id="sat-time" type="range" min="0" max="24" value="24" aria-label="Satellite frame time"><span>Latest</span></label></div><div id="sat-date-controls" class="sat-controls" hidden><label>Observation day (UTC) <input id="sat-date" type="date"></label></div><div class="sat-info"><span id="sat-capture">Acquisition: —</span><span id="sat-age">—</span></div></section><aside class="sat-details"><section class="panel"><div class="panel-heading"><div><span class="eyebrow">READING THE IMAGE</span><h2>Freshness, explained.</h2></div></div><div class="detail-content"><span id="sat-cadence" class="chip accent">15-minute source intervals</span><p id="sat-description"></p><dl class="source-details"><dt>Source</dt><dd id="sat-source">EUMETSAT</dd><dt>Resolution</dt><dd id="sat-resolution">Regional weather imagery</dd><dt>Coverage</dt><dd>Iran & the Gulf region</dd></dl><p class="callout">Frequent weather imagery shows regional conditions. Individual vessels need much finer resolution.</p><a id="sat-provider-link" class="text-link" href="https://view.eumetsat.int/" target="_blank" rel="noopener noreferrer">Open imagery provider ↗</a></div></section><section class="panel"><div class="panel-heading"><h2>Jump to a location</h2></div><div id="location-buttons" class="location-buttons"></div></section></aside></div><div class="section-heading"><div><span class="eyebrow">A CLOSER LOOK</span><h2>Latest Sentinel-2 scenes</h2><p>10 m optical data around Hormuz. Availability depends on satellite passes, processing and clouds.</p></div><a href="https://browser.dataspace.copernicus.eu/" class="button" target="_blank" rel="noopener noreferrer">Copernicus Browser ↗</a></div><div id="scene-grid" class="scene-grid"></div><p class="data-footnote">Copernicus Sentinel data via Element 84 Earth Search. Thumbnails are downsampled previews. The visual GeoTIFF links provide full-resolution data.</p></section>
+<section class="view" id="view-reports" aria-label="Reports and news" hidden><div class="reports-grid"><section class="panel"><div class="panel-heading"><div><span class="eyebrow">PUBLIC MARITIME REPORTING</span><h2>UKMTO incident reports</h2></div><span id="incident-count" class="chip">—</span></div><p class="inset-note">Source reports, not independent confirmations. Check official advisories for updates.</p><div id="incident-list" class="incident-list"></div><a class="panel-foot" href="https://www.ukmto.org/" target="_blank" rel="noopener noreferrer">UKMTO official notices <span>↗</span></a></section><section class="panel"><div class="panel-heading"><div><span class="eyebrow">REGIONAL COVERAGE</span><h2>In the news</h2></div><span class="chip">RSS</span></div><div id="news-list" class="news-list"></div></section></div><section class="panel quake-panel"><div class="panel-heading"><div><span class="eyebrow">ENVIRONMENTAL CONTEXT</span><h2>Regional earthquakes</h2></div><span class="chip">USGS · M2.5+ · 30 days</span></div><div id="quake-list" class="quake-list"></div></section></section>
+<section class="view" id="view-sources" aria-label="Sources and methodology" hidden><section class="panel"><div class="panel-heading"><div><span class="eyebrow">FOLLOW EVERY NUMBER TO ITS SOURCE</span><h2>Data health</h2></div><span id="collection-time" class="chip">—</span></div><div id="source-list" class="source-list"></div></section><div class="method-grid"><section class="panel prose"><h2>What “current” means here</h2><p>Observation time, model valid time, and collection time are different. Each is labeled. AIS is sampled roughly every 30 minutes. The collector runs twice an hour; scheduled GitHub runs can be delayed.</p><p>EUMETSAT metadata is checked when satellite watch opens and every 15 minutes while visible. The image uses an advertised capture time, never an invented current timestamp.</p><p>On failure, the last successful snapshot keeps its original timestamp and gains a cached warning. Old data is marked stale. Missing data is never replaced with synthetic traffic.</p></section><section class="panel prose"><h2>Understand the limits</h2><p>AIS is self-reported, sampled, and incomplete. Signals can be missing, delayed or incorrect. This is a commercial shipping observatory, not a navigation service.</p><p>Oil estimates come from tanker capacity and model assumptions. They are not direct cargo measurements. A reported zero does not prove no oil moved.</p><p>Weather and waves are forecasts, not on-site sensors. Satellite weather images resolve kilometers; Sentinel-2 has finer detail but less frequent coverage. Basemaps are historical mosaics.</p></section></div><section class="panel prose"><h2>Sources, attribution & reuse</h2><p>Commercial AIS and crossings: <a href="https://hormuz.data-tracking.net/api-docs" target="_blank" rel="noopener noreferrer">Hormuz Ship Monitor</a>, CC BY 4.0 with provider usage terms. Incidents: UKMTO, Crown copyright, Open Government Licence v3.0, via Hormuz Ship Monitor.</p><p>Imagery: © EUMETSAT EUMETView; NASA Worldview / GIBS; Copernicus Sentinel data via Element 84 Earth Search; Esri and imagery contributors. Basemap: OpenStreetMap contributors. Forecasts: Open-Meteo, DWD and partner models, CC BY 4.0 (free endpoint for non-commercial use). Earthquakes: USGS. News headlines: their respective publishers.</p><p>Data is filtered, formatted, and aggregated for this independent project. No provider endorses this site. See <a href="README.md">README.md</a> for deployment and provider terms.</p></section></section>
+<footer class="site-footer"><span><img src="favicon.svg" width="18" height="18" alt=""> IRAN TRACKER <i>/</i> Public signals. Clear perspective.</span><span><a href="#sources">Sources & status</a> · All times UTC · Informational use</span></footer>
+</main></div>
+<dialog id="vessel-dialog" class="vessel-dialog"><button id="dialog-close" class="dialog-close" aria-label="Close vessel details">×</button><div id="vessel-detail"></div></dialog><div id="toast" class="toast" role="status" hidden></div>
+<noscript><div class="noscript">Enable JavaScript for maps and filters. Read the <a href="README.md">documentation</a> or <a href="data/live/status.json">source collection status</a>.</div></noscript>
+</body></html>

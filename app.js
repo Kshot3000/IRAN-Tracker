@@ -1,148 +1,103 @@
-/* IRAN Tracker — demo frontend.
- * All ship data is SIMULATED. To go live, replace loadDemoShips() with a real
- * AIS provider fetch (see Methodology tab). */
-(function () {
-  "use strict";
+import {escapeHTML as esc, safeURL, number as num, ageMs, freshness, vesselGroup, validPosition, filterShips, aggregateDays, csv} from './core.mjs';
 
-  var DEMO = true; // flip to false when a live AIS feed is wired in
-  var snapshotISO = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-
-  /* ---------- tabs ---------- */
-  var tabBtns = document.querySelectorAll("nav.tabs button");
-  var panels = document.querySelectorAll("section.panel");
-  function showTab(name) {
-    tabBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === name); });
-    panels.forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + name); });
-    if (name === "satellite") initSatMap();
-    if (name === "map" && map) setTimeout(function () { map.invalidateSize(); }, 50);
-  }
-  tabBtns.forEach(function (b) { b.addEventListener("click", function () { showTab(b.dataset.tab); }); });
-  document.querySelectorAll('[data-tab]').forEach(function (el) {
-    if (el.tagName === "BUTTON") return;
-    el.addEventListener("click", function () { showTab(el.dataset.tab); });
-  });
-  if (location.hash === "#methodology") showTab("methodology");
-
-  function setSnapTimes() {
-    document.querySelectorAll(".snapTime").forEach(function (el) { el.textContent = snapshotISO; });
-    var m = document.getElementById("mapUpdated");
-    if (m) m.textContent = snapshotISO;
-  }
-
-  function fmt(n) { return n.toLocaleString("en-US"); }
-
-  /* ---------- demo ship markers ---------- */
-  var map = null;
-  function shipIcon(course, outbound) {
-    var color = outbound ? "#f59e0b" : "#38bdf8";
-    var html = '<div class="ship-icon" style="transform:rotate(' + course + 'deg);' +
-      'width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;' +
-      'border-bottom:14px solid ' + color + ';"></div>';
-    return L.divIcon({ html: html, className: "", iconSize: [14, 14], iconAnchor: [7, 7] });
-  }
-
-  function initMap(ships) {
-    if (typeof L === "undefined") {
-      document.getElementById("map").innerHTML =
-        '<p class="note" style="padding:20px">Map library failed to load (network blocked). Ship data is still listed in the Crossings and Ship Directory tabs.</p>';
-      return;
-    }
-    map = L.map("map").setView([26.55, 56.35], 9);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18, attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
-    ships.forEach(function (s) {
-      var m = L.marker([s.lat, s.lon], { icon: shipIcon(s.course, s.status === "Outbound") }).addTo(map);
-      m.bindPopup("<b>" + s.name + "</b><br>" + s.type + " · " + s.flag +
-        "<br>DWT " + fmt(s.dwt) + " · " + s.length + " m" +
-        "<br>Speed " + s.speed + " kn · Course " + s.course + "&deg;" +
-        "<br>Status: " + s.status + " · Dest: " + s.dest +
-        "<br><span class='tag demo'>DEMO</span>");
-    });
-  }
-
-  /* ---------- stats + tables ---------- */
-  function renderStats(ships) {
-    var inbound = ships.filter(function (s) { return s.status === "Inbound"; }).length;
-    var outbound = ships.filter(function (s) { return s.status === "Outbound"; }).length;
-    var oilBbl = ships.reduce(function (a, s) { return a + (s.oil_bbl || 0); }, 0);
-    var oilM = (oilBbl / 1e6).toFixed(2);
-    document.getElementById("statCards").innerHTML =
-      card(fmt(ships.length * 2), "Simulated crossings · 24h", true) +
-      card(fmt(ships.length), "In strait (demo snapshot)", true) +
-      card(fmt(inbound), "Inbound (demo)", true) +
-      card(fmt(outbound), "Outbound (demo)", true) +
-      card(oilM + " M bbl", "Illustrative oil in snapshot", true);
-  }
-  function card(v, l, warn) {
-    return '<div class="card' + (warn ? " warn" : "") + '"><div class="v">' + v +
-      '</div><div class="l">' + l + ' <span class="tag demo">DEMO</span></div></div>';
-  }
-
-  function renderCrossings(ships) {
-    var tb = document.querySelector("#crossingsTable tbody");
-    var now = Date.now();
-    var rows = ships.slice(0, 14).map(function (s, i) {
-      var t = new Date(now - i * 47 * 60000); // ~47 min apart, deterministic
-      var ts = t.toISOString().replace("T", " ").slice(0, 16);
-      var oil = s.oil_bbl ? (s.oil_bbl / 1e6).toFixed(2) : "-";
-      return "<tr><td>" + ts + "</td><td><span class='tag " + s.status.toLowerCase() +
-        "'>" + s.status + "</span></td><td>" + s.name + "</td><td>" + s.type +
-        "</td><td>" + s.flag + "</td><td>" + fmt(s.dwt) + "</td><td>" + oil +
-        "</td><td>" + s.dest + "</td></tr>";
-    }).join("");
-    tb.innerHTML = rows;
-  }
-
-  function renderShips(ships) {
-    var tb = document.querySelector("#shipsTable tbody");
-    tb.innerHTML = ships.map(function (s) {
-      return "<tr><td><b>" + s.name + "</b></td><td>" + s.type + "</td><td>" + s.flag +
-        "</td><td>" + fmt(s.dwt) + "</td><td>" + s.length + " m</td><td>" + s.speed +
-        "</td><td>" + s.course + "&deg;</td><td><span class='tag " + s.status.toLowerCase() +
-        "'>" + s.status + "</span></td></tr>";
-    }).join("");
-  }
-
-  /* ---------- satellite map (lazy) ---------- */
-  var satMap = null, satInit = false;
-  function initSatMap() {
-    if (satInit) { if (satMap) setTimeout(function () { satMap.invalidateSize(); }, 50); return; }
-    satInit = true;
-    if (typeof L === "undefined") {
-      document.getElementById("satmap").innerHTML =
-        '<p class="note" style="padding:20px">Map library failed to load (network blocked). Key locations are listed in the table below.</p>';
-      return;
-    }
-    satMap = L.map("satmap").setView([28.5, 55.5], 5);
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-      maxZoom: 18, attribution: "Imagery &copy; Esri &mdash; basemap mosaic, not live"
-    }).addTo(satMap);
-    fetch("data/locations.json").then(function (r) { return r.json(); }).then(function (d) {
-      var tb = document.querySelector("#locTable tbody");
-      tb.innerHTML = d.locations.map(function (loc) {
-        L.marker([loc.lat, loc.lon]).addTo(satMap)
-          .bindPopup("<b>" + loc.name + "</b><br>" + loc.desc);
-        return "<tr><td><b>" + loc.name + "</b></td><td>" + loc.kind + "</td><td>" +
-          loc.lat.toFixed(4) + ", " + loc.lon.toFixed(4) + "</td><td>" + loc.desc + "</td></tr>";
-      }).join("");
-    }).catch(function () {
-      document.querySelector("#locTable tbody").innerHTML =
-        "<tr><td colspan='4'>Could not load locations.json</td></tr>";
-    });
-    setTimeout(function () { satMap.invalidateSize(); }, 100);
-  }
-
-  /* ---------- boot ---------- */
-  setSnapTimes();
-  fetch("data/demo_ships.json").then(function (r) { return r.json(); }).then(function (d) {
-    var ships = d.ships;
-    initMap(ships);
-    renderStats(ships);
-    renderCrossings(ships);
-    renderShips(ships);
-  }).catch(function () {
-    document.getElementById("statCards").innerHTML =
-      '<div class="card warn"><div class="v">—</div><div class="l">Could not load demo_ships.json</div></div>';
-  });
-})();
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const paths = {
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+ ship:'<path d="m3 13 9-3 9 3-3 6H6zM7 12V5h10v7M10 5V2h4v3M2 21q3 2 5 0 3 2 5 0 3 2 5 0 3 2 5 0"/>',
+ sat:'<path d="m7 11 4-4 6 6-4 4zM3 8l5-5 3 3-5 5zm10 10 5-5 3 3-5 5zM4 15v5h5m-4-1 3-3"/>',
+ activity:'<path d="M2 12h4l3-8 5 16 3-8h5"/>',
+ layers:'<path d="m3 7 9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5"/>',
+ search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+ arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',
+ refresh:'<path d="M20 8a9 9 0 0 0-15-3L2 8m0-6v6h6M4 16a9 9 0 0 0 15 3l3-3m0 6v-6h-6"/>',
+ wind:'<path d="M2 8h13a3 3 0 1 0-3-3M2 12h17a3 3 0 1 1-3 3M2 16h7a3 3 0 1 1-3 3"/>',
+ wave:'<path d="M2 6q3-4 6 0t6 0 6 0M2 12q3-4 6 0t6 0 6 0M2 18q3-4 6 0t6 0 6 0"/>',
+ globe:'<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/>',
+ star:'<path d="m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"/>',
+ download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/>',
+ expand:'<path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/>',
+ pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>'
+};
+const icon = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[n] || paths.globe}</svg>`;
+$$('[data-icon]').forEach(e => e.innerHTML = icon(e.dataset.icon));
+const storage = {get(k, fallback){try {return JSON.parse(localStorage.getItem('iran-tracker:'+k)) ?? fallback;} catch{return fallback;}},set(k,v){try{localStorage.setItem('iran-tracker:'+k,JSON.stringify(v));return true;}catch{return false;}}};
+const saved = storage.get('watchlist', []);
+const state = {feeds:{},view:'overview',watch:Array.isArray(saved)?saved.map(String):[],page:0,sort:'name',sortDir:1,watchOnly:false,mapType:'all',busy:false,satCatalog:[],satChecked:0,satPlaying:null};
+let map, baseLayer, shipLayer, markers = new Map(), satMap, satLayer, sceneOutline, toastTimer;
+const FEEDS = ['summary','ships','crossings','daily','weather','marine','satellite','scenes','incidents','news','earthquakes'];
+const labels = {summary:'Shipping summary',ships:'Commercial AIS',crossings:'Crossing detections',daily:'30-day crossing history',weather:'Weather forecast',marine:'Marine forecast',satellite:'Meteosat imagery metadata',scenes:'Sentinel-2 scene catalog',incidents:'UKMTO reports',news:'Regional news RSS',earthquakes:'USGS earthquakes'};
+const viewInfo = {overview:['Overview','Eyes on the strait.','Commercial traffic, earth observation, and the stories behind the signal.'],vessels:['Vessel explorer','Follow the fleet.','Search real commercial AIS records. Save vessels to your personal watchlist.'],crossings:['Strait crossings','A passage in motion.','Source-detected movements between the Persian Gulf and the Gulf of Oman.'],satellite:['Satellite watch','The view from orbit.','Recent weather imagery and higher-resolution scenes, with their actual source times.'],reports:['Reports & news','Context beyond the map.','Public maritime reports, regional coverage, and environmental observations.'],sources:['Sources & status','Trust starts at the source.','Inspect freshness, provenance, coverage, and the limits behind every signal.']};
+const zoneName = s => ({persian_gulf:'Persian Gulf',gulf_of_oman:'Gulf of Oman',in_strait:'In strait'}[s] || s || 'Unknown');
+const date = (iso, timeOnly=false) => {const d = new Date(iso);if(!iso || !Number.isFinite(d.getTime()))return 'Not supplied';return d.toLocaleString('en-GB',{timeZone:'UTC',...(timeOnly?{}:{day:'2-digit',month:'short'}),hour:'2-digit',minute:'2-digit',hour12:false})+' UTC';};
+const age = iso => {const ms=ageMs(iso);if(!Number.isFinite(ms))return 'Time unknown';if(ms < -300000)return 'Clock mismatch';const m=Math.max(0,Math.floor(ms/60000));return m<1?'Just updated':m<60?`${m}m old`:m<1440?`${Math.floor(m/60)}h ${m%60}m old`:`${Math.floor(m/1440)}d old`;};
+const feed = key => state.feeds[key]?.data;
+const empty = msg => `<div class="empty">${esc(msg)}</div>`;
+const threshold = key => key==='scenes'?14*86400000:90*60000;
+const feedState = key => freshness(state.feeds[key],Date.now(),threshold(key));
+function notify(message){$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4500);}
+function setTheme(theme){document.documentElement.dataset.theme=theme==='light'?'light':'dark';storage.set('theme',theme);$('#theme-toggle').setAttribute('aria-label',`Switch to ${theme==='dark'?'light':'dark'} theme`);}
+setTheme(storage.get('theme','dark'));
+function clock(){$('#utc-clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'UTC',hour12:false})+' UTC';}clock();setInterval(clock,1000);
+async function json(url){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),18000);try{const r=await fetch(url,{signal:controller.signal,cache:'no-cache'});if(!r.ok)throw Error(`HTTP ${r.status}`);return await r.json();}finally{clearTimeout(timer);}}
+async function loadFeed(key){try{const d=await json(`data/live/${key}.json`);if(d.schemaVersion!==1 || typeof d.ok!=='boolean')throw Error('Invalid feed');if(key==='satellite'&&Date.parse(state.feeds[key]?.fetchedAt)>Date.parse(d.fetchedAt))return;state.feeds[key]=d;if(d.ok)storage.set('feed:'+key,d);}catch{const previous=state.feeds[key]||storage.get('feed:'+key,null);state.feeds[key]=previous?{...previous,lastFailure:{time:new Date().toISOString(),message:'Snapshot fetch failed; showing cached data'}}:{ok:false,data:null};}}
+async function loadAll(){if(state.busy)return;state.busy=true;$('#refresh').classList.add('spinning');$('#refresh').disabled=true;await Promise.allSettled(FEEDS.map(loadFeed));state.busy=false;$('#refresh').classList.remove('spinning');$('#refresh').disabled=false;state.satCatalog=feed('satellite')||[];renderAll();if(state.view==='satellite')await refreshSatelliteMetadata();}
+function renderAll(){renderStats();renderWeather();renderCharts();renderCrossings();renderVessels();renderReports();renderSources();renderScenes();renderMap();renderStatus();renderTeaser();renderWatchCount();}
+function renderStatus(){const f=state.feeds.summary;const status=feedState('summary');const healthy=status==='updated';$('#global-status').innerHTML=`<i class="dot ${healthy?'teal':''}"></i><div><strong>${healthy?'AIS snapshot updated':'AIS '+esc(status)}</strong><small>${f?.observedAt?esc(date(f.observedAt,true))+' · '+esc(age(f.observedAt)):'Observation unavailable'}</small></div>`;const failed=FEEDS.filter(k=>['unavailable','cached','stale','clock mismatch'].includes(feedState(k)));const alert=$('#connection-alert');alert.hidden=!failed.length&&navigator.onLine;if(!alert.hidden)alert.textContent=!navigator.onLine?'You are offline. Showing any previously loaded snapshots with their original timestamps.':`${failed.length} source${failed.length===1?' needs':'s need'} attention. Old or cached values retain their original times. Open Sources & status for details.`;}
+function renderStats(){const s=feed('summary');const cards=[['Vessels in coverage',num(feed('ships')?.length),'ship',`<span>${num(s?.persian_gulf_ships)}</span> Gulf · <span>${num(s?.gulf_of_oman_ships)}</span> Oman`],['Detected crossings · 24h',num(s?.total_crossings),'activity',`<span>↙ ${num(s?.inbound)} inbound</span> &nbsp; <span class="accent">↗ ${num(s?.outbound)} outbound</span>`],['Currently in the strait',num(s?.in_strait),'pin','Source-classified commercial traffic'],['Oil outflow estimate',s?.oil_export_barrels==null?'—':num(s.oil_export_barrels/1e6,2)+'<span class="unit">M bbl</span>','layers','AIS model · 24h · not measured cargo']];$('#stats').innerHTML=cards.map(c=>`<article class="stat"><div class="stat-label">${c[0]}${icon(c[2])}</div><div class="stat-value">${c[1]}</div><div class="stat-bottom">${c[3]}</div></article>`).join('');$('#nav-ships').textContent=num((feed('ships')||[]).length);}
+function renderWeather(){const w=feed('weather')?.current,m=feed('marine')?.current;const describe=c=>c==null?'Unavailable':c===0?'Clear sky':c<=3?'Partly cloudy':c<=48?'Fog':c<=67?'Rain':c<=77?'Snow':c<=86?'Showers':'Thunderstorms';$('#weather-content').innerHTML=`<div class="weather-main"><strong>${num(w?.temperature_2m,1)}°</strong><span>${describe(w?.weather_code)}</span></div><div class="weather-measures"><div><label>${icon('wind')}Wind</label><strong>${num(w?.wind_speed_10m,1)} <small>kn</small></strong></div><div><label>${icon('wave')}Waves</label><strong>${num(m?.wave_height,2)} <small>m</small></strong></div><div><label>Sea temperature</label><strong>${num(m?.sea_surface_temperature,1)} <small>°C</small></strong></div><div><label>Wave period</label><strong>${num(m?.wave_period,1)} <small>s</small></strong></div></div><div class="weather-valid">Model valid ${esc(date(state.feeds.weather?.observedAt,true))}<br>Weather ${esc(feedState('weather'))} · sea ${esc(feedState('marine'))}</div>`;}
+function chartMarkup(){const days=aggregateDays(feed('daily')||[]).slice(-30);if(!days.length)return empty('Crossing history unavailable.');const W=650,H=180,left=32,top=12,bottom=150,max=Math.max(4,...days.map(d=>Math.max(d.inbound,d.outbound))),step=(W-left-10)/days.length;let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily inbound and outbound crossing detections over 30 days"><title>Daily crossing detections, UTC; today is partial</title>`;for(let i=0;i<4;i++){const value=Math.ceil(max/3*i),y=bottom-(value/max)*(bottom-top);s+=`<path class="grid-line" d="M${left} ${y}H${W}"/><text x="${left-9}" y="${y+3}" text-anchor="end">${value}</text>`;}days.forEach((d,i)=>{const x=left+i*step,bw=step*.3,ih=d.inbound/max*(bottom-top),oh=d.outbound/max*(bottom-top);s+=`<g class="chart-bar"><title>${d.day}: ${d.inbound} inbound, ${d.outbound} outbound</title><rect class="bar-in" x="${x+step*.12}" y="${bottom-ih}" width="${bw}" height="${ih}" rx="1.5"/><rect class="bar-out" x="${x+step*.5}" y="${bottom-oh}" width="${bw}" height="${oh}" rx="1.5"/></g>`;if((i%7===0&&i<days.length-3)||i===days.length-1)s+=`<text x="${x+step/2}" y="171" text-anchor="middle">${new Date(d.day+'T00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'})}</text>`;});return s+'</svg>';}
+function renderCharts(){const html=chartMarkup();$('#overview-chart').innerHTML=html;$('#full-chart').innerHTML=html+`<p class="data-footnote">Source checked ${esc(date(state.feeds.daily?.fetchedAt))} · ${esc(feedState('daily'))}</p>`;}
+function crossings(){const rows=feed('crossings')||[];return rows.filter(r=>['inbound','outbound'].includes(r.direction)).sort((a,b)=>Date.parse(b.detected_at)-Date.parse(a.detected_at));}
+function renderCrossings(){const rows=crossings(),dir=$('#crossing-direction').value;$('#recent-crossings').innerHTML=rows.slice(0,3).map(r=>`<div class="recent-row"><span class="direction-icon ${esc(r.direction)}">${r.direction==='inbound'?'↙':'↗'}</span><div class="recent-main"><strong>${esc(r.ship_name||'Unnamed vessel')}</strong><small>${esc(r.ship_category||'Commercial vessel')}</small></div><div class="recent-end">${esc(date(r.detected_at,true))}<small>${esc(r.direction)}</small></div></div>`).join('')||empty('No crossing detections in this snapshot.');$('#crossing-table tbody').innerHTML=rows.filter(r=>dir==='all'||r.direction===dir).map(r=>`<tr><td>${esc(date(r.detected_at))}</td><td>${esc(r.ship_name)}<span class="table-sub">ID ${esc(r.mmsi)}</span></td><td><span class="tag ${esc(r.direction)}">${esc(r.direction)}</span></td><td>${esc(r.ship_category||'Unknown')}</td><td>${num(r.dwt)} t</td><td>${esc(r.destination||'Not supplied')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No detections match this direction, or the source is unavailable.</td></tr>';}
+function currentShips(){const rows=filterShips(feed('ships')||[],{query:$('#vessel-query').value,type:$('#vessel-type').value,zone:$('#vessel-zone').value,watch:state.watchOnly,watched:state.watch});return rows.sort((a,b)=>{const x=a[state.sort],y=b[state.sort];if(x==null)return 1;if(y==null)return -1;return state.sort==='speed'?(x-y)*state.sortDir:String(x).localeCompare(String(y))*state.sortDir;});}
+function renderVessels(){const rows=currentShips(),pages=Math.max(1,Math.ceil(rows.length/30));state.page=Math.min(state.page,pages-1);$('#vessel-results').textContent=`${num(rows.length)} vessels match · ${num((feed('ships')||[]).length)} in source snapshot`;$('#vessel-time').textContent=`${date(state.feeds.ships?.observedAt)} · ${feedState('ships')}`;$('#vessel-page').textContent=`${state.page+1} / ${pages}`;$('#vessel-prev').disabled=state.page===0;$('#vessel-next').disabled=state.page>=pages-1;$('#watch-only').setAttribute('aria-pressed',String(state.watchOnly));$('#vessel-table tbody').innerHTML=rows.slice(state.page*30,(state.page+1)*30).map(s=>`<tr><td><button class="vessel-name" data-vessel="${esc(s.mmsi)}">${esc(s.name||'Unnamed vessel')}</button><span class="table-sub">ID ${esc(s.mmsi)}</span></td><td>${esc(s.ship_category||'Unknown')}<span class="table-sub">${esc(s.flag||'Flag not supplied')}</span></td><td>${esc(zoneName(s.zone))}</td><td>${num(s.speed,1)} kn</td><td>${esc(s.destination||'Not supplied')}</td><td>${esc(date(s.timestamp,true))}<span class="table-sub">${esc(age(s.timestamp))}</span></td><td><button class="watch-button ${state.watch.includes(String(s.mmsi))?'active':''}" data-watch="${esc(s.mmsi)}" aria-label="${state.watch.includes(String(s.mmsi))?'Remove':'Add'} ${esc(s.name)} ${state.watch.includes(String(s.mmsi))?'from':'to'} watchlist" aria-pressed="${state.watch.includes(String(s.mmsi))}">${icon('star')}</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">No vessels match. Try another search, type, or watchlist filter.</td></tr>';}
+function renderWatchCount(){$('#watch-count').textContent=String(state.watch.length);}
+function watch(id){state.watch=state.watch.includes(id)?state.watch.filter(x=>x!==id):[...state.watch,id];if(!storage.set('watchlist',state.watch))notify('Watchlist changed for this session; browser storage is unavailable.');renderWatchCount();renderVessels();}
+function showVessel(id){const s=(feed('ships')||[]).find(s=>String(s.mmsi)===id);if(!s)return;const details=[['Source ID',s.mmsi],['Area',zoneName(s.zone)],['Speed',num(s.speed,1)+' kn'],['Course',num(s.course,1)+'°'],['Destination',s.destination||'Not supplied'],['Deadweight capacity',num(s.dwt)+' t'],['Length / width',num(s.length)+' / '+num(s.width)+' m'],['Coordinates',validPosition(s)?`${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`:'Not available'],['Position time',date(s.timestamp)],['Position age',age(s.timestamp)]];$('#vessel-detail').innerHTML=`<span class="eyebrow">COMMERCIAL AIS RECORD</span><h2>${esc(s.name||'Unnamed vessel')}</h2><p class="dialog-type">${esc(s.ship_category||'Unknown')} · ${esc(s.flag||'Unknown flag')}</p><dl>${details.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><p class="callout">Source-reported snapshot. Course, destination, and position can be delayed or inaccurate.</p><div class="dialog-actions"><button class="button primary" data-locate="${esc(id)}" ${validPosition(s)?'':'disabled'}>${icon('pin')} Show on map</button><button class="button" data-watch="${esc(id)}">${icon('star')} ${state.watch.includes(id)?'Unwatch':'Watch vessel'}</button></div>`;if(!$('#vessel-dialog').open)$('#vessel-dialog').showModal();}
+function renderMap(){if(!window.L){$('#traffic-map').innerHTML=empty('Map library unavailable. Use the vessel explorer.');return;}if(!map){map=L.map('traffic-map',{preferCanvas:true,zoomControl:false,minZoom:4,maxZoom:18,worldCopyJump:true}).setView([26.45,55.75],7);L.control.zoom({position:'bottomright'}).addTo(map);shipLayer=L.layerGroup().addTo(map);setBasemap('dark');}shipLayer.clearLayers();markers.clear();const all=feed('ships')||[],rows=all.filter(validPosition).filter(s=>state.mapType==='all'||vesselGroup(s)===state.mapType||(state.mapType==='other'&&vesselGroup(s)==='passenger'));const colors={tanker:'#6dd5bf',cargo:'#82b2f3',passenger:'#eab66a',other:'#c194e8'};for(const s of rows){const color=colors[vesselGroup(s)];const m=L.circleMarker([s.latitude,s.longitude],{radius:s.speed>1?4:3,weight:1,color:'#14212b',fillColor:color,fillOpacity:ageMs(s.timestamp)>90*60000?.35:.9}).addTo(shipLayer);m.bindPopup(`<strong class="popup-name">${esc(s.name||'Unnamed vessel')}</strong><div class="popup-meta">${esc(s.ship_category||'Commercial vessel')} · ${esc(s.flag)}<br>${num(s.speed,1)} kn · ${num(s.course,1)}°<br>${esc(date(s.timestamp))} · ${esc(age(s.timestamp))}</div><button data-vessel="${esc(s.mmsi)}">Vessel details →</button>`);markers.set(String(s.mmsi),m);}$('#map-count').textContent=`${num(rows.length)} reported positions · ${feedState('ships')}`;$('#map-updated').textContent=date(state.feeds.ships?.observedAt,true);}
+function setBasemap(kind){if(!map)return;if(baseLayer)map.removeLayer(baseLayer);const url=kind==='satellite'?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png';baseLayer=L.tileLayer(url,{maxZoom:19,className:kind==='satellite'?'reference-tiles':'night-basemap',attribution:kind==='satellite'?'Historical mosaic © Esri & imagery contributors':'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);baseLayer.on('tileerror',()=>$('#map-error').hidden=false);baseLayer.on('tileload',()=>$('#map-error').hidden=true);$$('#base-switch button').forEach(b=>{b.classList.toggle('active',b.dataset.base===kind);b.setAttribute('aria-pressed',String(b.dataset.base===kind));});if(kind==='satellite')notify('Esri imagery is a historical basemap. Open Satellite watch for recent acquisitions.');}
+const locations=[['Hormuz',26.56,56.25],['Bandar Abbas',27.18,56.27],['Qeshm',26.75,56.0],['Kish',26.23,53.98],['Tehran',35.69,51.39],['Chabahar',25.29,60.64]];
+function renderScenes(){const rows=feed('scenes')||[];$('#scene-grid').innerHTML=rows.slice(0,8).map(s=>`<article class="scene-card">${s.thumbnail?`<a href="${esc(safeURL(s.thumbnail))}" target="_blank" rel="noopener noreferrer"><img src="${esc(safeURL(s.thumbnail))}" alt="Sentinel-2 scene ${esc(s.id)}" loading="lazy"></a>`:'<div class="image-failed">Preview unavailable</div>'}<div class="scene-body"><h3>${esc(date(s.time))}</h3><p>${esc(s.platform?.toUpperCase())} · ${num(s.cloudCover,1)}% cloud</p><p class="mono">${esc(s.id)}</p><div class="scene-actions"><a href="${esc(safeURL(s.url))}" target="_blank" rel="noopener noreferrer">Metadata ↗</a>${s.visual?`<a href="${esc(safeURL(s.visual))}" target="_blank" rel="noopener noreferrer">Visual GeoTIFF ↓</a>`:''}</div></div></article>`).join('')||empty('No Sentinel-2 scenes returned by the catalog.');$$('#scene-grid img').forEach(img=>img.addEventListener('error',()=>{const e=document.createElement('div');e.className='image-failed';e.textContent='Preview unavailable';img.replaceWith(e);}));$('#location-buttons').innerHTML=locations.map((l,i)=>`<button data-location="${i}">${l[0]} ↗</button>`).join('');}
+function wmsImage(layer,time){const p=new URLSearchParams({service:'WMS',version:'1.1.1',request:'GetMap',layers:layer,styles:'',srs:'EPSG:4326',bbox:'46,20,64,36',width:'650',height:'450',format:'image/jpeg',time});return 'https://view.eumetsat.int/geoserver/wms?'+p;}
+function renderTeaser(){const l=state.satCatalog.find(l=>l.id==='msg_iodc:ir108');if(l){$('#satellite-preview').style.backgroundImage=`url("${wmsImage(l.id,l.latest)}")`;$('#sat-teaser-time').textContent=`Meteosat · ${date(l.latest,true)} · ${age(l.latest)}`;}else $('#sat-teaser-time').textContent='Capture metadata unavailable';}
+async function refreshSatelliteMetadata(force=false){if(!force&&Date.now()-state.satChecked<15*60000){initSatellite();return;}state.satChecked=Date.now();const button=$('#sat-latest');button.disabled=true;const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),18000);try{const response=await fetch('https://view.eumetsat.int/geoserver/wms?service=WMS&request=GetCapabilities&version=1.3.0',{signal:ctrl.signal});if(!response.ok)throw Error('metadata');const xml=new DOMParser().parseFromString(await response.text(),'text/xml');const parsed=[];for(const layer of xml.getElementsByTagNameNS('*','Layer')){const children=[...layer.children];const name=children.find(n=>n.localName==='Name')?.textContent;const old=state.satCatalog.find(l=>l.id===name);if(!old)continue;const dim=children.find(n=>n.localName==='Dimension'&&n.getAttribute('name')==='time');const latest=dim?.getAttribute('default');if(latest&&Number.isFinite(Date.parse(latest)))parsed.push({...old,latest,range:dim.textContent});}if(parsed.length){state.satCatalog=parsed;const t=new Date().toISOString();state.feeds.satellite={...state.feeds.satellite,ok:true,data:parsed,fetchedAt:t,observedAt:parsed.map(l=>l.latest).sort().at(-1)};delete state.feeds.satellite.lastFailure;renderSources();renderTeaser();renderStatus();}else throw Error('No supported layers');}catch{if(force)notify('Satellite metadata could not refresh. Keeping the last advertised capture times.');}finally{clearTimeout(timer);button.disabled=false;initSatellite();}}
+function initSatellite(){if(!window.L){$('#satellite-map').innerHTML=empty('Map library unavailable. Open EUMETView using the provider link.');return;}if(!satMap){satMap=L.map('satellite-map',{zoomControl:false,minZoom:3,maxZoom:12}).setView([28.0,55.5],5);L.control.zoom({position:'bottomright'}).addTo(satMap);L.control.scale({imperial:false,position:'bottomleft'}).addTo(satMap);for(const place of locations){L.circleMarker([place[1],place[2]],{radius:2,color:'#efce98',weight:1,fillOpacity:1}).addTo(satMap).bindTooltip(place[0],{permanent:true,direction:'top',className:'place-label',opacity:1});}}setTimeout(()=>satMap.invalidateSize(),60);setSatelliteLayer();}
+function stopPlay(){clearInterval(state.satPlaying);state.satPlaying=null;$('#sat-play').textContent='▶ Play';}
+function setSatelliteLayer(){if(!satMap)return;const kind=$('#sat-layer').value,ir=kind.startsWith('msg_'),viirs=kind==='viirs';$('#sat-time-controls').hidden=!ir;$('#sat-date-controls').hidden=!viirs;if(satLayer)satMap.removeLayer(satLayer);satLayer=null;let caption;
+ if(ir){const cfg=state.satCatalog.find(l=>l.id===kind);if(!cfg){$('#sat-image-status').textContent='Acquisition metadata unavailable; no image requested.';return;}const t=new Date(Date.parse(cfg.latest)-(24-Number($('#sat-time').value))*15*60000).toISOString();satLayer=L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms',{layers:cfg.id,format:'image/png',transparent:false,version:'1.1.1',time:t,maxNativeZoom:7,maxZoom:12,attribution:'© <a href="https://view.eumetsat.int/">EUMETSAT EUMETView</a> · '+esc(t)});caption=`Meteosat frame · ${date(t)}`;$('#sat-capture').textContent='Service frame: '+date(t);$('#sat-age').textContent=age(t)+(ageMs(cfg.latest)>90*60000?' · latest metadata is stale':'');$('#sat-description').textContent=cfg.description;$('#sat-cadence').textContent='15-minute source intervals';$('#sat-resolution').textContent=cfg.resolution;$('#sat-source').textContent='EUMETSAT · Meteosat IODC';$('#sat-provider-link').href='https://view.eumetsat.int/';
+ }else if(viirs){const day=$('#sat-date').value;const today=new Date().toISOString().slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day>today||day<'2018-03-14'){$('#sat-image-status').textContent='Choose a valid observation date.';return;}satLayer=L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/${day}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg`,{maxNativeZoom:9,maxZoom:12,attribution:'<a href="https://worldview.earthdata.nasa.gov/">NASA Worldview / GIBS</a> · VIIRS NOAA-20'});caption='VIIRS observation day · '+day;satLayer.setOpacity(1);$('#sat-capture').textContent='Observation day: '+day+' UTC';$('#sat-age').textContent='Daily mosaic · no exact capture time';$('#sat-description').textContent='Daily true-color satellite mosaic. Current-day coverage can be incomplete; clouds and unobserved areas may appear blank. The initial selection is yesterday (UTC).';$('#sat-cadence').textContent='Daily polar-orbiting coverage';$('#sat-resolution').textContent='~250 m display grid; sensor bands vary';$('#sat-source').textContent='NASA GIBS · VIIRS NOAA-20';$('#sat-provider-link').href=`https://worldview.earthdata.nasa.gov/?v=46,20,64,36&t=${day}&l=VIIRS_NOAA20_CorrectedReflectance_TrueColor`;
+ }else{satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:12,attribution:'Esri & imagery contributors · historical mosaic'});caption='REFERENCE BASEMAP · acquisition dates vary';$('#sat-capture').textContent='Capture time: not supplied by this tile service';$('#sat-age').textContent='Historical imagery · not live';$('#sat-description').textContent='A high-detail geographic reference compiled from imagery of different dates. This layer is not a current satellite observation.';$('#sat-cadence').textContent='Historical mosaic';$('#sat-resolution').textContent='Variable by location and zoom';$('#sat-source').textContent='Esri World Imagery';$('#sat-provider-link').href='https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9';}
+ $('#sat-image-status').textContent='Loading · '+caption;const currentLayer=satLayer;let tileErrors=0;currentLayer.on('tileerror',()=>{tileErrors++;if(satLayer===currentLayer)$('#sat-image-status').textContent='Imagery tiles unavailable · '+caption;});currentLayer.on('load',()=>{if(satLayer===currentLayer)$('#sat-image-status').textContent=tileErrors?'Some imagery tiles unavailable · '+caption:caption+' · check cloud / no-data areas';});currentLayer.addTo(satMap);
+}
+function renderReports(){const incidents=feed('incidents')||[];$('#incident-count').textContent=`${incidents.length} reports`;$('#incident-list').innerHTML=incidents.slice(0,40).map(r=>`<details class="incident"><summary><div><div class="incident-type">${esc(r.id)} · ${esc(r.type||'Report')}</div>${esc(r.place||'Reported maritime incident')}<small>${esc(date(r.time))} · ${esc(r.vessel_type||'Vessel')}</small></div></summary><p>${esc(r.text)}</p><small>UKMTO report via Hormuz Ship Monitor · OGL v3.0</small></details>`).join('')||empty('No incident reports available.');const articles=feed('news')?.articles||[];$('#news-list').innerHTML=articles.slice(0,20).map(n=>`<a class="news-item" href="${esc(safeURL(n.url))}" target="_blank" rel="noopener noreferrer"><div class="news-meta"><strong>${esc(n.publisher)}</strong><span>${esc(date(n.published))}</span></div><h3>${esc(n.title)} ↗</h3></a>`).join('')||empty('News feed unavailable.');const qs=feed('earthquakes')?.features||[];$('#quake-list').innerHTML=qs.slice(0,9).map(f=>`<a class="quake" href="${esc(safeURL(f.properties.url))}" target="_blank" rel="noopener noreferrer"><strong>${num(f.properties.mag,1)}</strong><div>${esc(f.properties.place)}<small>${esc(date(f.properties.time))} · ${num(f.geometry?.coordinates?.[2],1)} km depth</small></div></a>`).join('')||empty(state.feeds.earthquakes?.ok?'No M2.5+ earthquakes reported in this region during the last 30 days.':'USGS feed unavailable.');}
+function renderSources(){const times=FEEDS.map(k=>state.feeds[k]?.fetchedAt).filter(Boolean).sort();$('#collection-time').textContent='Last check '+date(times.at(-1),true);$('#source-list').innerHTML=FEEDS.map(k=>{const f=state.feeds[k],s=feedState(k);return `<div class="source-row"><div><strong>${labels[k]}</strong><small>${esc(f?.source?.name||'Source unavailable')}</small></div><span class="source-state ${esc(s)}"><i class="dot"></i>${esc(s.toUpperCase())}</span><div class="source-time">${['weather','marine'].includes(k)?'Model valid':k==='scenes'?'Newest scene':k==='satellite'?'Latest frame':'Source time'}: ${esc(date(f?.observedAt))}<small>Fetched: ${esc(date(f?.fetchedAt))}</small></div>${f?.source?.url?`<a href="${esc(safeURL(f.source.url))}" target="_blank" rel="noopener noreferrer">Source ↗</a>`:'<span>—</span>'}</div>`;}).join('');}
+function route(){const raw=location.hash.slice(1),legacy={map:'overview',ships:'vessels',news:'reports',methodology:'sources'};const name=legacy[raw]||raw;state.view=viewInfo[name]?name:'overview';$$('.view').forEach(el=>el.hidden=el.id!=='view-'+state.view);$$('[data-view]').forEach(el=>{const active=el.dataset.view===state.view;el.classList.toggle('active',active);if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});const [crumb,title,description]=viewInfo[state.view];$('#breadcrumb-view').textContent=crumb;$('#page-title').textContent=title;$('#page-description').textContent=description;document.title=`${crumb} — IRAN Tracker`;if(state.view==='overview'&&map)setTimeout(()=>map.invalidateSize(),60);if(state.view==='satellite')refreshSatelliteMetadata();else stopPlay();}
+function download(name,headers,rows){if(!rows.length){notify('No rows to export.');return;}const blob=new Blob(['\ufeff'+csv(headers,rows)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify(`Exported ${rows.length} rows.`);}
+$('#theme-toggle').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+$('#refresh').addEventListener('click',async()=>{await loadAll();notify('Snapshots reloaded. The source observation times are shown on each view.');});
+$('#global-search').addEventListener('submit',e=>{e.preventDefault();$('#vessel-query').value=$('#global-query').value;state.page=0;state.watchOnly=false;$('#vessel-type').value='all';$('#vessel-zone').value='all';renderVessels();location.hash='vessels';});
+['#vessel-query','#vessel-type','#vessel-zone'].forEach(s=>$(s).addEventListener(s==='#vessel-query'?'input':'change',()=>{state.page=0;renderVessels();}));
+$('#watch-only').addEventListener('click',()=>{state.watchOnly=!state.watchOnly;state.page=0;renderVessels();});
+$('#watchlist-nav').addEventListener('click',()=>{state.watchOnly=true;state.page=0;$('#vessel-query').value='';$('#vessel-type').value='all';$('#vessel-zone').value='all';renderVessels();location.hash='vessels';});
+$('#vessel-prev').addEventListener('click',()=>{state.page=Math.max(0,state.page-1);renderVessels();});$('#vessel-next').addEventListener('click',()=>{state.page++;renderVessels();});
+$$('[data-sort]').forEach(b=>b.addEventListener('click',()=>{state.sortDir=state.sort===b.dataset.sort?-state.sortDir:1;state.sort=b.dataset.sort;state.page=0;$$('[data-sort]').forEach(x=>x.closest('th').removeAttribute('aria-sort'));b.closest('th').setAttribute('aria-sort',state.sortDir===1?'ascending':'descending');renderVessels();}));
+$('#crossing-direction').addEventListener('change',renderCrossings);
+$('#export-vessels').addEventListener('click',()=>download('iran-tracker-vessels.csv',['Source ID','Name','Category','Flag','Latitude','Longitude','Speed knots','Course degrees','Destination','Observation UTC','Source'],currentShips().map(s=>[s.mmsi,s.name,s.ship_category,s.flag,s.latitude,s.longitude,s.speed,s.course,s.destination,s.timestamp,'hormuz.data-tracking.net'])));
+$('#export-crossings').addEventListener('click',()=>download('iran-tracker-crossings.csv',['Detected UTC','Vessel','Source ID','Direction','Category','DWT tonnes','Destination','Source'],crossings().filter(r=>$('#crossing-direction').value==='all'||r.direction===$('#crossing-direction').value).map(r=>[r.detected_at,r.ship_name,r.mmsi,r.direction,r.ship_category,r.dwt,r.destination,'hormuz.data-tracking.net'])));
+$('#dialog-close').addEventListener('click',()=>$('#vessel-dialog').close());$('#vessel-dialog').addEventListener('click',e=>{if(e.target===$('#vessel-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
+$('#base-switch').addEventListener('click',e=>{const b=e.target.closest('[data-base]');if(b)setBasemap(b.dataset.base);});
+$('#map-filters').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(!b)return;state.mapType=b.dataset.type;$$('#map-filters button').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',String(x===b));});renderMap();});
+$('#fit-map').addEventListener('click',()=>{const points=[...markers.values()].map(m=>m.getLatLng());if(map&&points.length)map.fitBounds(L.latLngBounds(points),{padding:[30,30],maxZoom:10});else notify('No mapped positions to fit.');});$('#reset-map').addEventListener('click',()=>map?.setView([26.45,55.75],7));
+$('#sat-layer').addEventListener('change',()=>{stopPlay();setSatelliteLayer();});$('#sat-time').addEventListener('input',()=>{stopPlay();setSatelliteLayer();});$('#sat-date').addEventListener('change',setSatelliteLayer);
+$('#sat-latest').addEventListener('click',async()=>{stopPlay();$('#sat-time').value='24';await refreshSatelliteMetadata(true);});
+$('#sat-play').addEventListener('click',()=>{if(state.satPlaying){stopPlay();return;}if(matchMedia('(prefers-reduced-motion: reduce)').matches)notify('Playback is manual despite your reduced-motion preference. Press Pause to stop.');$('#sat-time').value='0';setSatelliteLayer();$('#sat-play').textContent='Ⅱ Pause';state.satPlaying=setInterval(()=>{if(satLayer?.isLoading())return;const i=Number($('#sat-time').value);if(i>=24){stopPlay();return;}$('#sat-time').value=String(i+1);setSatelliteLayer();},2200);});
+$('#sat-date').max=new Date().toISOString().slice(0,10);$('#sat-date').min='2018-03-14';$('#sat-date').value=new Date(Date.now()-86400000).toISOString().slice(0,10);
+$('#location-buttons').addEventListener('click',e=>{const b=e.target.closest('[data-location]');if(!b)return;const l=locations[Number(b.dataset.location)];satMap?.setView([l[1],l[2]],6);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-vessel],[data-watch],[data-locate]');if(!b)return;if(b.dataset.watch){const id=b.dataset.watch;watch(id);if($('#vessel-dialog').open)showVessel(id);}else if(b.dataset.vessel)showVessel(b.dataset.vessel);else if(b.dataset.locate){const id=b.dataset.locate;$('#vessel-dialog').close();state.mapType='all';$$('#map-filters button').forEach(x=>x.classList.toggle('active',x.dataset.type==='all'));renderMap();location.hash='overview';setTimeout(()=>{const m=markers.get(id);if(m&&map){map.invalidateSize();map.setView(m.getLatLng(),11);m.openPopup();}},120);}});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!$('#vessel-dialog').open){e.preventDefault();$('#global-query').focus();}});
+window.addEventListener('hashchange',route);window.addEventListener('offline',renderStatus);window.addEventListener('online',()=>loadAll());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlay();});
+setInterval(()=>{if(!document.hidden)loadAll();},30*60000);setInterval(()=>{if(!document.hidden&&state.view==='satellite')refreshSatelliteMetadata();},15*60000);setInterval(()=>{if(!document.hidden){renderStatus();renderSources();}},60000);
+route();loadAll();
